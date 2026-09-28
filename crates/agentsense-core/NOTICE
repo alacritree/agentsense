@@ -1,0 +1,12 @@
+agentsense
+Copyright 2026 agentsense contributors
+
+This project contains code and detection manifests adapted from Herdr:
+https://github.com/herdrdev/herdr
+Copyright Herdr contributors, licensed under Apache-2.0.
+Source revision: d5680d84fd1df3b592424eae5c50d54642f0727d
+
+Changes include extraction into reusable Rust crates, explicit caller-owned
+inputs and detector instances, typed public errors, module boundaries, and
+standalone tests and documentation. See docs/extraction.md for the source map.
+Herdr protocol source identifiers are retained for compatibility.

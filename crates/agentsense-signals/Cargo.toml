@@ -1,0 +1,20 @@
+[package]
+name = "agentsense-signals"
+description = "Streaming OSC, agent hook metadata, and session parsing for coding agents"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+keywords = ["agents", "terminal", "parser"]
+categories = ["parsing", "development-tools"]
+
+[dependencies]
+agentsense-core.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
