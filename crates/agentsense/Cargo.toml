@@ -1,6 +1,6 @@
 [package]
 name = "agentsense"
-description = "Detect coding agent state from terminal screens and explicit OSC inputs"
+description = "Track coding-agent status from terminal events supplied by a host"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,15 +9,6 @@ rust-version.workspace = true
 readme = "README.md"
 
 [dependencies]
-agentsense-core = { workspace = true }
-agentsense-signals = { workspace = true }
-regex = { workspace = true }
-serde = { workspace = true }
-thiserror = { workspace = true }
-toml = { workspace = true }
-
-[dev-dependencies]
-serde_json = { workspace = true }
 
 [lints]
 workspace = true

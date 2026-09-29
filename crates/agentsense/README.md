@@ -1,28 +1,38 @@
 # agentsense
 
-Rust libraries for recognizing coding agents and interpreting their terminal
-signals. Extracted from [Herdr](https://github.com/herdrdev/herdr), maintained
-under [alacritree](https://github.com/alacritree).
+A small Rust crate for tracking coding agents in terminal sessions. It answers
+whether an agent is present, which of 24 known agents it is when recognizable,
+and whether it is idle, working, finished, or waiting for action.
 
-Pass in process snapshots, live terminal text, OSC bytes or hook reports. Get
-agent identity, state evidence, matched rules and validated session metadata.
-The libraries perform no process polling, terminal emulation or network access.
+Alacritree supplies foreground process observations, accepted terminal title
+changes, bells, visibility, time, and optional status reports from hooks or a
+pane owner such as Herdr. The crate holds one in-memory tracker per terminal.
+It does not inspect processes, own a PTY, parse raw escape sequences, install
+hooks, or connect to Herdr.
 
-## Crates
+## Event requirements
 
-| Crate | Purpose |
+| Input from alacritree | Why it is needed |
 | --- | --- |
-| `agentsense` | Main API: screen manifests, detector, explanations and re-exports |
-| `agentsense-core` | Shared types, 24 agent identities, process/command parsing |
-| `agentsense-signals` | Streaming OSC, hook reports, sessions, metadata and state transition helpers |
+| Foreground process identity | Establish agent presence and identify a known agent. Re-probe when the foreground job changes. |
+| Terminal title changes | A Braille spinner indicates working; its disappearance starts a possible completion. Pass only titles accepted by the host. |
+| Bell | Records a request for attention. A bell alone does not mean the agent is waiting for action. |
+| Trusted status report | A hook or pane owner can say idle, working, blocked, done, or unknown. `blocked` maps to waiting for action. |
+| Visibility and focus | Clear completed attention when the user views the terminal. |
+| Monotonic time and a timer wake-up | Let a completion settle through a grace period; cancel it if work resumes. |
+| Child exit | Discard stale identity and state for the ended terminal. |
 
-The main crate re-exports the shared types and exposes `agentsense::signals`.
-Each crate can also be used on its own.
+The host should map `Snapshot::status` to its sidebar. `None` means the state
+is unknown or no agent is present; use `agent_present` to distinguish those
+cases. Native process presence alone uses an idle fallback, matching
+alacritree's current behavior. Accurate waiting-for-action detection needs a
+trusted status report. Native completion is a title heuristic and can be
+superseded by a report.
 
 ## Use
 
-Requires Rust 1.85 or newer. The crates are available from this repository;
-they have not been published to crates.io.
+Requires Rust 1.85 or newer. This crate is available from Git and has not been
+published to crates.io.
 
 ```toml
 [dependencies]
@@ -30,71 +40,26 @@ agentsense = { git = "https://github.com/alacritree/agentsense" }
 ```
 
 ```rust
-use agentsense::{Agent, DetectionInput, Detector};
+use agentsense::{identify_process, Event, Status, Tracker};
+use std::time::{Duration, Instant};
 
-// Construct once; compiled rules are reused across observations.
-let detector = Detector::bundled();
-let input = DetectionInput::screen("current bottom-of-buffer text");
-let evidence = detector.detect(Some(Agent::Claude), input);
-let explanation = detector.explain(Some(Agent::Claude), input);
-println!("{:?}: {:?}", evidence.state, explanation.matched_rule);
+let mut tracker = Tracker::new(); // one per terminal
+let now = Instant::now();
+let grace = Duration::from_millis(500);
+let agent = identify_process(Some("claude"), Some("claude"));
+tracker.observe(Event::Process(agent), now, grace);
+tracker.observe(Event::Title("⠋ Claude"), now, grace);
+assert_eq!(tracker.snapshot().status, Some(Status::Working));
 ```
 
-Use plain text from the terminal's live buffer, not raw PTY bytes or a scrolled
-viewport. Agent identity comes from process information or an explicit host
-hint. The screen rules determine state after identity is known.
-
-### Track OSC title and progress
-
-```rust
-use agentsense::{Agent, DetectionInput, Detector};
-use agentsense::signals::AgentOscStateTracker;
-
-let mut osc = AgentOscStateTracker::default();
-osc.observe(b"\x1b]2;agent title\x07");
-osc.observe(b"\x1b]9;4;1;50\x07");
-let input = DetectionInput {
-    screen: "live terminal text",
-    osc_title: osc.latest_title(),
-    osc_progress: osc.latest_progress(),
-};
-let evidence = Detector::bundled().detect(Some(Agent::Codex), input);
-```
-
-The OSC parser accepts arbitrary chunk boundaries. Pass all PTY chunks through
-it and reset retained evidence when the running agent changes. Its `observe`
-return value reports changes to the presentation title; read progress separately.
-
-### Supply custom rules
-
-```rust
-use agentsense::{Agent, AgentState, DetectionInput, Detector};
-
-let mut detector = Detector::empty();
-detector.set_manifest(Agent::Codex, r#"
-id = "codex"
-[[rules]]
-id = "approval"
-state = "blocked"
-visible_blocker = true
-region = "bottom_non_empty_lines(2)"
-contains = ["approve this action"]
-"#).unwrap();
-let result = detector.detect(
-    Some(Agent::Codex),
-    DetectionInput::screen("Approve this action"),
-);
-assert_eq!(result.state, AgentState::Blocked);
-```
-
-Manifests support nested AND/OR/NOT gates, substring and regex matchers, screen
-regions, OSC inputs, priorities and history-view suppression. Invalid changes
-return typed errors and leave the detector's active rules intact. Instances have
-independent configuration.
+For a hook or Herdr status, send `Event::Report(Some(StatusReport { agent,
+status }))`. Send `Event::Report(None)` when the source detaches. The host decides
+which report to trust when multiple sources exist. Pass `Event::Tick` after
+`Update::next_check` and notify only when `Update::notify` is true.
 
 ## Supported agents
 
-Agentsense recognizes these 24 agents:
+The registry recognizes these **24 agents**:
 
 | Agent | Agent | Agent |
 | --- | --- | --- |
@@ -107,25 +72,10 @@ Agentsense recognizes these 24 agents:
 | Muse | OpenCode | OMP |
 | Pi | Qoder CLI | Qwen |
 
-22 agents have bundled terminal screen rules. **OMP and Mastra Code** use hook
-signals for state detection. The rules are a pinned snapshot of Herdr's behavior,
-and future agent releases may require updates.
-
-## Scope
-
-A screen result is evidence. Hosts still own hook authority, process lifetimes,
-session replacement and final state arbitration. `skip_state_update` means a
-history view should preserve the previous state. The transition helpers apply
-that rule and confirm ambiguous working-to-idle changes using caller timestamps.
-
-See [extraction notes](https://github.com/alacritree/agentsense/blob/main/docs/extraction.md) for the source revision, complete
-source map, behavior differences and integration boundaries.
-
-To inspect a captured live screen from this checkout:
-
-```sh
-cargo run -p agentsense --example read_screen -- codex < screen.txt
-```
+Identity support does not imply that every agent emits usable titles or offers
+hooks. A status report is the reliable route to `WaitingForAction`. The process
+recognizer accepts the canonical executable and known aliases; callers can
+also pass an `Agent` directly when their own probe resolves a wrapper.
 
 ## Develop
 
@@ -136,10 +86,6 @@ cargo clippy --workspace --all-targets -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps
 ```
 
-CI runs tests on Linux, macOS and Windows, plus a Rust 1.85 compatibility check.
-Tests cover parser semantics; they do not substitute for testing live agent CLIs.
-
-## License
-
-Apache-2.0. Includes code and manifests adapted from Herdr. See [LICENSE](LICENSE)
-and [NOTICE](NOTICE) for attribution.
+Apache-2.0. The agent registry was adapted from
+[Herdr](https://github.com/herdrdev/herdr). See [NOTICE](NOTICE) and
+[extraction notes](docs/extraction.md).

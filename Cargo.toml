@@ -1,22 +1,13 @@
 [workspace]
-members = ["crates/agentsense", "crates/agentsense-core", "crates/agentsense-signals"]
+members = ["crates/agentsense"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/alacritree/agentsense"
-
-[workspace.dependencies]
-agentsense-core = { version = "0.1.0", path = "crates/agentsense-core" }
-agentsense-signals = { version = "0.1.0", path = "crates/agentsense-signals" }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-regex = "1"
-toml = "0.8"
-thiserror = "2"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
