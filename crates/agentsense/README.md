@@ -92,12 +92,26 @@ regions, OSC inputs, priorities and history-view suppression. Invalid changes
 return typed errors and leave the detector's active rules intact. Instances have
 independent configuration.
 
-## Scope
+## Supported agents
 
-The registry includes Claude Code, Codex, Gemini, Cursor, Pi, OpenCode, GitHub
-Copilot and 17 other agent kinds. There are 22 bundled screen manifests; Omp and
-Mastracode use hook signals. The rules are a pinned snapshot of Herdr's behavior,
+Agentsense recognizes these 24 agents:
+
+| Agent | Agent | Agent |
+| --- | --- | --- |
+| Amp | Antigravity | Claude Code |
+| Cline | Codex | Cursor |
+| Devin | Droid | Gemini |
+| GitHub Copilot | Grok | Hermes |
+| Kilo | Kimi | Kiro |
+| Letta | Maki | Mastra Code |
+| Muse | OpenCode | OMP |
+| Pi | Qoder CLI | Qwen |
+
+22 agents have bundled terminal screen rules. **OMP and Mastra Code** use hook
+signals for state detection. The rules are a pinned snapshot of Herdr's behavior,
 and future agent releases may require updates.
+
+## Scope
 
 A screen result is evidence. Hosts still own hook authority, process lifetimes,
 session replacement and final state arbitration. `skip_state_update` means a
